@@ -1,0 +1,317 @@
+---
+title: "Final Assignment - DCM"
+author: "Anonymous id - 65352"
+date: '2021-03-23'
+output: pdf_document
+
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+# Focal variable = Race and hispanic origin
+# State = Kenntucky
+# main dependent variable = migrate1 
+# st_orgi = origin state for each respondent
+# race = Race (general version)
+# raced = Race (detailed version)
+# hispan = Hispanic origin (general version)
+# hispand = Hispanic orgin (detailed version)
+
+knitr::opts_chunk$set(echo = TRUE)
+library(ipumsr)
+library(labelled)
+library(tidyverse)
+library(ggplot2)
+library(stargazer)
+library(effects)
+library(kableExtra)
+library(lmtest)
+Kentucky <- readRDS("Kentucky.rds")
+```
+
+```{r, echo=FALSE, include=FALSE}
+Kentucky$migrate1 <- na.omit(Kentucky$migrate1)
+try(na.fail(Kentucky$migrate1))
+```
+
+```{r, echo=FALSE}
+Kentucky$migrate.binary <- ifelse(Kentucky$migrate1 %in% c("1"), 0, 1)
+```
+
+```{r, echo=FALSE}
+Kentucky$race <- factor(Kentucky$race)
+Kentucky <- Kentucky %>% mutate(race = fct_recode(race,
+           White = "1",
+           "African American" = "2",
+           "Native American" = "3",
+           "East Asian" = "4",
+           "East Asian" = "5",
+           "Other Asian" = "6", 
+           "Other Race" = "7",
+           Mixed = "8",
+           Mixed = "9"))
+
+Kentucky$hispan <- factor(Kentucky$hispan)
+Kentucky <- Kentucky %>% mutate(hispan = fct_recode(hispan,
+           "Not Hispanic" = "0",
+           Hispanic = "1",
+           Hispanic = "2",
+           Hispanic = "3",
+           Hispanic = "4",))
+```
+
+
+```{r, echo=FALSE, fig.heigh=10, fig.width=10}
+counts <- proportions(table(Kentucky$migrate.binary, Kentucky$race), margin=2)
+barplot(counts, beside = TRUE, main="Migration distribution",
+        xlab="Race", ylab="Proportional migration", col=c("darkblue","yellow"), cex.names = 0.5)
+opar = par(oma = c(0,0,0,0), mar = c(0,0,0,0), new = TRUE)
+legend("topright", legend = rownames(counts), fill=c("darkblue", "yellow"))
+```
+```{r, echo=FALSE}
+counts2 <- proportions(table(Kentucky$migrate.binary, Kentucky$hispan), margin=2)
+barplot(counts2, beside = TRUE, main="Migration distribution",
+        xlab="Hispanic binary", ylab="Proportional migration", col=c("darkblue","yellow"), cex.names = 0.5)
+opar = par(oma = c(0,0,0,0), mar = c(0,0,0,0), new = TRUE)
+legend("topright", legend = rownames(counts2), fill=c("darkblue", "yellow"))
+```
+
+
+```{r, echo=FALSE, include=FALSE}
+m1 <- glm(formula = migrate.binary ~ race + hispan, family=binomial(link="logit"), data = Kentucky)
+summary(m1)
+```
+
+```{r, echo=FALSE}
+Kentucky$citizen <- factor(Kentucky$citizen)
+Kentucky <- Kentucky %>% mutate(citizen = fct_recode(citizen,
+           "Not Available" = "0",
+           "Born Abroad" = "1",
+           "Naturalized Citizen" = "2",
+           "Not Citizen" = "3",
+           ))
+```
+
+```{r, echo=FALSE}
+Kentucky$hhincome_bi <- ifelse(Kentucky$hhincome < 0,0,1)
+Kentucky$hhincome <- ifelse(Kentucky$hhincome < 0, 0, Kentucky$hhincome)
+Kentucky$hhincome <- ifelse(Kentucky$hhincome == 0, 1, Kentucky$hhincome)
+```
+
+
+```{r, echo=FALSE, include=FALSE}
+m2 <- glm(formula = migrate.binary ~ race + hispan + log(hhincome) + hhincome_bi + citizen, family=binomial(link="logit"), data = Kentucky)
+summary(m2)
+```
+
+```{r, echo=FALSE, results= 'asis'}
+stargazer(list(m1, m2),
+          header=F, keep.stat = c("n","ll"),
+          title = "Generalized linear model - Migration by Race and Hispanic origin",
+          notes = c("Source: IPUMS Kentucky"),
+          font.size = "footnotesize",
+          covariate.labels = c("African American", "Native American", "East Asian", "Other Asian", "Other Race", "Mixed", "Hispanic", "Log Household Income", "Binary Household Income", "Born Abroad Citizen", "Naturalized Citizen", "Not Citizen"))
+```
+
+
+```{r, echo=FALSE, fig.width=20, fig.height=10}
+preds_m1 <- plot(allEffects(m1))
+preds_m1
+```
+
+```{r, echo=FALSE, fig.width=30, fig.height=10, fig.asp=0.5}
+preds_m2 <- plot(allEffects(m2))
+```
+
+
+```{r, echo=FALSE, include=FALSE}
+(lrtest(m1,m2))
+```
+
+
+```{r, echo=FALSE}
+a <- exp(coef(m1))
+
+knitr::kable((a), col.names = "Odds ratios", digits=3, caption = "Generalized linear model 1")
+```
+
+```{r, echo=FALSE}
+b <- exp(coef(m2))
+
+knitr::kable((b), col.names = "Odds ratios", digits=3, caption = "Generalized linear model 2")
+```
+
+```{r, echo=FALSE}
+Kentucky$metro.binary <- ifelse(Kentucky$countyicp %in% c("1110", "1170", "370", "590", "470", "670"), 1, 0)
+```
+
+```{r, echo=FALSE}
+Kentucky$migrate1 <- as.factor(Kentucky$migrate1)
+Kentucky <- Kentucky %>% mutate(migrate1 = fct_recode(migrate1,
+           "Same House" = "1",
+           "Moved Within State" = "2",
+           "Moved Between State" = "3",
+           ))
+```
+
+```{r, echo=FALSE, fig.width=10}
+counts3 <- proportions(table(Kentucky$migrate1, Kentucky$race), margin=2)
+
+barplot(counts3, beside = TRUE, main="Migration distribution",
+        xlab="Race", ylab="Proportions", col=c("darkblue","yellow","green"), cex.names = 0.5)
+opar = par(oma = c(0,0,0,0), mar = c(0,0,0,0), new = TRUE)
+legend(x=20, y=1, legend = rownames(counts3), fill=c("darkblue", "yellow", "green"))
+```
+
+
+```{r, echo=FALSE, fig.width=10}
+counts4 <- proportions(table(Kentucky$migrate1, Kentucky$hispan), margin=2)
+
+barplot(counts4, beside = TRUE, main="Migration distribution",
+        xlab="Hispanic binary", ylab="Proportions", col=c("darkblue","yellow","green"), cex.names = 0.5)
+opar = par(oma = c(0,0,0,0), mar = c(0,0,0,0), new = TRUE)
+legend("topright", legend = rownames(counts4), fill=c("darkblue", "yellow", "green"))
+```
+
+
+```{r, echo=FALSE}
+library(nnet)
+```
+
+```{r, echo=FALSE, include=FALSE}
+m3 <-  multinom(migrate1 ~ race + hispan, data = Kentucky,  na.action = "na.exclude")
+summary(m3)
+```
+
+```{r, echo=FALSE, include=FALSE}
+m4 <-  multinom(migrate1 ~ race + hispan + log(hhincome) + citizen + metro.binary, data = Kentucky,  na.action = "na.exclude")
+summary(m4)
+```
+
+```{r,echo=FALSE, results='asis', fig.asp=0.5}
+stargazer(list(m3, m4),
+          header=F, keep.stat = c("n", "ll"),
+          title = "Multinomial logistic regression - Migration by Race and Hispanic origin",
+          notes = c("Source: IPUMS Kentucky", "Observations: 50,000", "Log Likelihood: Model 1 -19765 | Model 2 -19456"),
+          notes.align = "c",
+          font.size = "footnotesize",
+          covariate.labels = c("African American", "Native American", "East Asian", "Other Asian", "Other Race", "Mixed", "Hispanic", "Log Household Income", "Born Abroad Citizen", "Naturalized Citizen", "Not Citizen", "Binary Metropolitan resident"))
+```
+
+
+```{r, fig.width=20, fig.height=10, echo=FALSE}
+preds_m3 <- plot(allEffects(m3),
+                 lines = list(multiline = T),
+                 confint = list(style="auto"))
+```
+```{r, fig.width=30, fig.height=20, echo=FALSE}
+preds_m4 <- plot(allEffects(m4),
+                 lines = list(multiline = T),
+                 confint = list(style="auto"))
+```
+
+
+```{r, echo=FALSE, include=FALSE}
+(lrtest(m3,m4))
+```
+
+
+```{r, echo=FALSE}
+c <- exp(coef(m3))
+c <- t(c)
+knitr::kable((c), digits=3, col.names=c("Moved Within State", "Moved Between State"), caption = "Odds ratios - model 3") %>% kable_styling(font_size = 10, full_width = F, position = "left")
+```
+
+
+```{r, echo=FALSE}
+d <- exp(coef(m4))
+d <- t(d)
+knitr::kable((d),digits=3, col.names= c("Moved Within State", "Moved Between State"), caption = "Odds ratios - model 4") %>% kable_styling(font_size = 10, full_width = F, position = "left")
+```
+
+```{r, echo=FALSE}
+library(gtools)
+```
+
+```{r, echo=FALSE, include=FALSE}
+States <- readRDS("States.rds")
+
+Kentucky$medianHHincome <- ifelse(Kentucky$hhincome < median(Kentucky$hhincome), 0,1)
+Kentucky$quantHHincome <- quantcut(Kentucky$hhincome)
+
+mlog.data <- Kentucky[c("migrate1","race","hispan","medianHHincome","citizen", "serial", "statefip", "year","quantHHincome")] %>% mutate(id=paste0(year,serial))
+
+mlog.data <- mlog.data[which(mlog.data$migrate1 == "Moved Between State"),names(mlog.data) %in% c("race","hispan","medianHHincome", "citizen", "statefip", "id", "migrate1", "quantHHincome")]
+
+mlog.data <- mlog.data %>% full_join(States, by = character())
+
+mlog.data <- mlog.data[c("migrate1","race","hispan","medianHHincome","citizen", "statefip.x","statefip.y","id",
+"FreezingMonths","HotMonths","quantHHincome")]
+
+
+try(na.fail(mlog.data))
+mlog.data <- na.omit(mlog.data)
+try(na.fail(mlog.data))
+
+mlog.data$chid <- ifelse(mlog.data$statefip.x == mlog.data$statefip.y, 1, 0)
+```
+
+
+```{r, echo=FALSE, warning=FALSE, include=FALSE}
+library(survival)
+```
+
+```{r, echo=FALSE, include=FALSE}
+m5 <- clogit(chid ~ HotMonths:race + FreezingMonths:race + HotMonths:hispan + FreezingMonths:hispan + strata(id), data=mlog.data, na.action = "na.exclude")
+summary(m5)
+```
+
+```{r, echo=FALSE, include=FALSE}
+m6 <- clogit(chid ~ HotMonths:race + FreezingMonths:race + HotMonths:hispan + FreezingMonths:hispan + medianHHincome:HotMonths + citizen:HotMonths + quantHHincome:HotMonths + medianHHincome:FreezingMonths + citizen:FreezingMonths + quantHHincome:FreezingMonths + strata(id) ,data=mlog.data, na.action="na.exclude")
+summary(m6)
+```
+
+```{r, echo=FALSE, results='asis'}
+stargazer(list(m5, m6),
+          header=F, keep.stat = c("n","ll"),
+          title = "Multinomial logistic regression - Migration to other state by Race and Hispanic origin",
+          notes = c("Source: IPUMS Kentucky"),
+          single.row = TRUE,
+          font.size = "footnotesize",
+          covariate.labels = c("HotMonths:White", "HotMonths:African American", "HotMonths:Native American", "HotMonths:East Asian", "HotMonths:Other Asian", "HotMonths:Other Race", "HotMonths:Mixed", "FreezingMonths:White", "FreezingMonths:African American", "FreezingMonths:Native American", "FreezingMonths:East Asian", "FreezingMonths:Other Asian", "FreezingMonths:Other Race", "FreezingMonths: Mixed", "HotMonths:Hispan", "FreezingMonths:Hispan","HotMonths:Household Inc. Median Binary", "HotMonths:Born Abroad Citizen", "HotMonths:Naturalized Citizen", "HotMonths:Not Citizen", "HotMonths:quantHHincome(2nd-quant)", "HotMonths:quantHHincome(3rd-quant)", "HotMonths:quantHHincome(4th-quant)", "FreezingMonths:Household Inc. Median Binary", "FreezingMonths:Born Abroad Citizen", "FreezingMonths:Naturalized Citizen", "FreezingMonths:Not Citizen", "FreezingMonths:quantHHincome(2nd-quant)", "FreezingMonths:quantHHincome(3rd-quant)", "FreezingMonths:quantHHincome(4th-quant)"))
+```
+
+
+```{r, echo=FALSE, include=FALSE}
+(lrtest(m5,m6))
+```
+
+
+```{r, echo=FALSE}
+e <- summary(m5)
+e <- data.frame(e$coefficients)
+
+e <- e[which(e$Pr...z..<0.1),] 
+
+row.names(e) <- c("White * HotMonths", "African American * HotMonths", "Mixed * HotMonths", "White * FreezingMonths", "African American * FreezingMonths", "Native American * FreezingMonths", "Mixed * FreezingMonths", "Hispanic * HotMonths", "Hispanic * FreezingMonths")
+
+colnames(e) <- c("Coefficient", "Odds ratios", "Standard error", "Z-value", "P-value")
+
+
+knitr::kable((e), digits=3, caption = "Significant estimates - Multinomial logistic regression model 5 ") %>% kable_styling(font_size = 10, full_width = F, position = "left")
+```
+
+```{r, echo=FALSE}
+f <- summary(m6)
+f <- data.frame(f$coefficients)
+
+f <- f[which(f$Pr...z..<0.1),] 
+
+row.names(f) <- c("White * HotMonths", "African American * HotMonths", "Mixed * HotMonths", "White * FreezingMonths", "African American * FreezingMonths", "Native American * FreezingMonths", "Mixed * FreezingMonths", "Hispanic * HotMonths", "Hispanic * FreezingMonths", "Born Abroad Citizen * HotMonths")
+
+colnames(f) <- c("Coefficient", "Odds ratios", "Standard error", "Z-value", "P-value")
+
+knitr::kable((f), digits=3, caption = "Significant estimates - Multinomial logistic regression model 6 ") %>% kable_styling(font_size = 10, full_width = F, position = "left")
+```
+
+
+
